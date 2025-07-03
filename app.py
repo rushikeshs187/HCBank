@@ -5,6 +5,7 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 import matplotlib.pyplot as plt
 import seaborn as sns
 import plotly.express as px
+import numpy as np
 
 st.set_page_config(page_title="🏦 Bank Customer Analytics", layout="wide")
 
@@ -17,9 +18,7 @@ tab_names = [
     "🧩 Clustering",
     "🔗 Association Rules",
     "📈 Regression",
-    "💬 NLP (Feedback Analysis)",
-    "⏳ Time Series Trends",
-    "🕵️‍♂️ Segmentation"
+    "⏳ Time Series Trends"
 ]
 tabs = st.tabs(tab_names)
 
@@ -29,9 +28,6 @@ with st.sidebar:
     uploaded_file = st.file_uploader("Upload Excel dataset (with 'Cleaned data' sheet)", type=["xlsx"])
     st.markdown("---")
     st.info("1. Upload data\n2. Explore tabs\n3. Download insights!", icon="ℹ️")
-    st.markdown(
-        "<br><small>Created with ❤️ using [Streamlit](https://streamlit.io/)</small>", unsafe_allow_html=True
-    )
 
 # ---- DATA LOADING ----
 if uploaded_file is not None:
@@ -44,35 +40,30 @@ else:
 with tabs[0]:
     st.markdown("## 🎯 Dashboard Objectives")
     st.markdown("""
-This dashboard empowers your team to:
-- **Predict Customer Churn** – Anticipate and reduce attrition via AI models.
-- **Estimate Satisfaction Scores** – Target improvements, upsell to high-potential customers.
-- **Segment Customers for Personalization** – Discover personas for FinAdvisor offers.
-- **Find High Retention Patterns** – Reveal service combos linked to loyalty.
-- **Quantify Impact of FinAdvisor on Churn** – Make data-driven business cases.
+**This dashboard helps you:**
+- Predict Customer Churn (retain clients)
+- Estimate Satisfaction Scores (focus on at-risk clients)
+- Segment Customers for Offers (target personas)
+- Find High Retention Patterns (build loyalty)
+- Quantify FinAdvisor's impact (business case for tech)
 
-*Every tab is mapped to a business objective. See 💡 How to Use for details!*
-    """)
-    st.success("You’re viewing the one-stop analytics toolkit for strategic, retention-focused banking.")
+_Navigate tabs above to explore each goal!_
+""")
 
 # ---- HOW TO USE TAB ----
 with tabs[1]:
     st.markdown("## 💡 How to Use This Dashboard")
     st.markdown("""
-1. **Upload** your data (sidebar, xlsx with 'Cleaned data' sheet).
-2. **Use filters** to focus on business segments.
-3. **Navigate the tabs** for insights: Visualize, Predict, Segment, Mine, and more!
-4. **Download results** for action plans.
-5. **Check tooltips and captions** for explanations.
----
-**Pro Tip:** Start with 📊 *Data Visualisation* to spot trends, then deep-dive using the next tabs.
-    """)
-    st.info("Questions or errors? Ensure your data format matches the sample. All insights update live with your filters!")
+**Steps:**
+1. Upload your Excel data (`Cleaned data` sheet).
+2. Set filters for your segment.
+3. Use analysis tabs to explore insights.
+4. Download results for presentations or action.
+""")
 
 # ---- DATA VISUALISATION TAB ----
 with tabs[2]:
     st.header("📊 Data Visualisation")
-    st.markdown("> _Explore segments, spot risks & opportunities instantly!_")
     col1, col2, col3 = st.columns(3)
     with col1:
         gender = st.multiselect("Gender", options=df['Gender'].unique(), default=list(df['Gender'].unique()))
@@ -94,9 +85,9 @@ with tabs[2]:
         (df['Age'].between(*age_range)) &
         (df['Annual_Income'].between(*income_range))
     ]
-    st.success(f"Filtered records: **{len(filtered_df)}**", icon="🔎")
+    st.success(f"Filtered records: **{len(filtered_df)}**")
 
-    st.markdown("### 🔢 Key Insights")
+    # KPIs
     kpi1, kpi2, kpi3 = st.columns(3)
     kpi1.metric("Churn Rate (%)", f"{filtered_df['Churn_Label'].mean()*100:.2f}")
     kpi2.metric("Avg. Satisfaction", f"{filtered_df['Customer_Satisfaction_Score'].mean():.2f}")
@@ -108,14 +99,12 @@ with tabs[2]:
     fig_cr = px.bar(churn_rate, x='Account_Type', y='Churn_Label', color='Churn_Label', text_auto='.2%', color_continuous_scale="Reds")
     fig_cr.update_layout(showlegend=False, yaxis_title="Churn Rate")
     st.plotly_chart(fig_cr, use_container_width=True)
-    st.caption("🔍 *See which account types are most at risk of churn.*")
 
     # 2. Average Account Balance by Region
     st.subheader("2. Average Account Balance by Region")
     region_balance = filtered_df.groupby('Region')['Account_Balance'].mean().reset_index().sort_values("Account_Balance")
     fig_ab = px.bar(region_balance, x='Region', y='Account_Balance', text_auto='.2s', color='Account_Balance', color_continuous_scale="Blues")
     st.plotly_chart(fig_ab, use_container_width=True)
-    st.caption("💸 *Spot regions with the highest value clients.*")
 
     # 3. Churn by Age Group
     st.subheader("3. Churn Rate by Age Group")
@@ -126,21 +115,18 @@ with tabs[2]:
     fig_cage = px.line(churn_by_age, x='Age_Group', y='Churn_Label', markers=True)
     fig_cage.update_traces(line_color='red')
     st.plotly_chart(fig_cage, use_container_width=True)
-    st.caption("👵 *Understand churn risk by age bracket.*")
 
     # 4. Satisfaction by Account Type
     st.subheader("4. Customer Satisfaction by Account Type")
     satisfaction = filtered_df.groupby('Account_Type')['Customer_Satisfaction_Score'].mean().reset_index()
     fig_sat = px.bar(satisfaction, x='Account_Type', y='Customer_Satisfaction_Score', color='Customer_Satisfaction_Score', text_auto='.2f', color_continuous_scale="Greens")
     st.plotly_chart(fig_sat, use_container_width=True)
-    st.caption("⭐ *How happy are different account holders?*")
 
     # 5. Loan Amount Distribution by Loan Type
     st.subheader("5. Loan Amount Distribution by Loan Type")
     loan_dist = filtered_df.groupby('Loan_Type')['Loan_Amount'].sum().reset_index().sort_values("Loan_Amount", ascending=False)
     fig_loan = px.bar(loan_dist, x='Loan_Type', y='Loan_Amount', text_auto='.2s', color='Loan_Amount', color_continuous_scale="Viridis")
     st.plotly_chart(fig_loan, use_container_width=True)
-    st.caption("🏦 *Which loan products are most popular by value?*")
 
     # 6. Credit Score: Churned vs. Non-Churned
     st.subheader("6. Credit Score Distribution: Churned vs. Non-Churned")
@@ -148,7 +134,6 @@ with tabs[2]:
                      labels={'Churn_Label': 'Churned'}, points="all")
     fig_box.update_xaxes(tickvals=[0, 1], ticktext=['Not Churned', 'Churned'])
     st.plotly_chart(fig_box, use_container_width=True)
-    st.caption("📉 *Are churned customers lower risk?*")
 
     # 7. Customer Count by Branch
     st.subheader("7. Top 10 Branches by Customer Count")
@@ -156,7 +141,6 @@ with tabs[2]:
     top_branches.columns = ['Branch', 'Count']
     fig_br = px.bar(top_branches, x='Branch', y='Count', color='Count', color_continuous_scale="teal")
     st.plotly_chart(fig_br, use_container_width=True)
-    st.caption("🏢 *Branches with the biggest customer bases.*")
 
     # 8. Transaction Type Pie Chart (Plotly)
     st.subheader("8. Transaction Type Distribution")
@@ -170,7 +154,6 @@ with tabs[2]:
         hole=0.3
     )
     st.plotly_chart(fig3, use_container_width=True)
-    st.caption("💳 *How are customers using their accounts?*")
 
     # 9. Monthly Transaction Amount Trend
     st.subheader("9. Monthly Transaction Amount Trend")
@@ -178,7 +161,6 @@ with tabs[2]:
     monthly_trx = filtered_df.groupby('Transaction_Month')['Transaction_Amount'].sum().reset_index()
     fig_mt = px.line(monthly_trx, x='Transaction_Month', y='Transaction_Amount', markers=True)
     st.plotly_chart(fig_mt, use_container_width=True)
-    st.caption("📈 *When are transaction volumes peaking?*")
 
     # 10. Correlation Heatmap of Key Numeric Variables
     st.subheader("10. Correlation Heatmap")
@@ -187,14 +169,10 @@ with tabs[2]:
     fig2, ax2 = plt.subplots(figsize=(10, 6))
     sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
     st.pyplot(fig2)
-    st.caption("🤝 *Are balances, loans, credit scores interlinked?*")
-
-    st.info("Tip: All visuals update live with your segment filters. Download filtered data for deeper dives.", icon="📊")
 
 # ---- CLASSIFICATION TAB ----
 with tabs[3]:
     st.header("🤖 Churn Prediction (Classification)")
-    st.write("Predict and prevent customer churn using powerful machine learning algorithms.")
     drop_cols = ['Customer_ID', 'Transaction_Date', 'Account_Open_Date', 'Last_Transaction_Date', 'Churn_Timeframe', 'Simulated_New_Churn_Label']
     target = 'Churn_Label'
     features = [col for col in df.columns if col not in drop_cols + [target]]
@@ -235,7 +213,6 @@ with tabs[3]:
         })
     st.subheader("Model Performance Comparison")
     st.dataframe(pd.DataFrame(metrics).set_index("Algorithm").style.format("{:.2%}"))
-    st.caption("How well does each model predict churn? (Test data is what matters!)")
     st.subheader("Confusion Matrix")
     cm_option = st.selectbox("Choose Model for Confusion Matrix", list(models.keys()))
     cm = confusion_matrix(y_test, predictions[cm_option][1])
@@ -253,7 +230,6 @@ with tabs[3]:
     ax.set_title("ROC Curves")
     ax.legend()
     st.pyplot(fig)
-    st.caption("Which model best distinguishes churners vs. non-churners?")
     st.subheader("Predict Churn for New Data")
     uploaded_pred_file = st.file_uploader("Upload new data (xlsx/csv, same features, no 'Churn_Label')", type=["xlsx", "csv"], key="predict")
     if uploaded_pred_file:
@@ -310,11 +286,9 @@ with tabs[4]:
     ax.set_ylabel("Inertia")
     ax.set_title("Elbow Chart")
     st.pyplot(fig)
-    st.caption("Where does the 'elbow' bend? That's your best k.")
     st.subheader("Cluster Persona Table")
     persona = df_with_clusters.groupby('Cluster')[cluster_features].mean().round(2)
     st.dataframe(persona)
-    st.caption("Average features per cluster. Use for targeted strategies!")
     st.download_button(
         label="Download Cluster Data (CSV)",
         data=df_with_clusters.to_csv(index=False).encode("utf-8"),
@@ -347,14 +321,12 @@ with tabs[5]:
             rules['antecedents'] = rules['antecedents'].apply(lambda x: ', '.join(list(x)))
             rules['consequents'] = rules['consequents'].apply(lambda x: ', '.join(list(x)))
             st.dataframe(rules[display_cols])
-            st.caption("Top rules: look for high confidence & lift (>1).")
         else:
             st.warning("No rules found. Try different columns or lower thresholds.")
 
 # ---- REGRESSION TAB ----
 with tabs[6]:
     st.header("📈 Regression (Satisfaction & Value)")
-    st.write("Predict customer satisfaction, income, or balances. Spot top drivers and outliers.")
     regression_targets = ['Account_Balance', 'Annual_Income', 'Customer_Satisfaction_Score']
     target_reg = st.selectbox("Regression target", regression_targets)
     reg_drop_cols = [
@@ -406,17 +378,16 @@ with tabs[6]:
 - Loans and employment status are top drivers.
     """)
 
-# ---- ADVANCED TABS PLACEHOLDER ----
+# ---- TIME SERIES TAB ----
 with tabs[7]:
-    st.header("💬 NLP (Feedback/Complaints Analysis)")
-    st.info("Add a column with customer comments or complaints to unlock text analytics (word clouds, sentiment, topic modeling). Coming soon!")
-
-with tabs[8]:
     st.header("⏳ Time Series Trends")
-    st.info("Analyze and forecast account activity, complaints, or balances over time. Feature coming soon!")
+    st.write("Analyze monthly trends in key metrics.")
+    if 'Transaction_Date' in df.columns:
+        df['Transaction_Month'] = pd.to_datetime(df['Transaction_Date']).dt.to_period('M').astype(str)
+        monthly_metrics = df.groupby('Transaction_Month')[['Transaction_Amount', 'Account_Balance', 'Customer_Satisfaction_Score']].mean().reset_index()
+        fig = px.line(monthly_metrics, x='Transaction_Month', y=['Transaction_Amount', 'Account_Balance', 'Customer_Satisfaction_Score'], markers=True)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.warning("Transaction_Date column not found for time series analysis.")
 
-with tabs[9]:
-    st.header("🕵️‍♂️ Advanced Segmentation")
-    st.info("Interactive cluster explorer and explainability (e.g., SHAP). Coming soon!")
-
-st.markdown("---\n*Dashboard by Data Science Team – For questions, reach out to your analytics partner!*")
+st.markdown("---\n*Dashboard ready for all your analysis needs!*")
