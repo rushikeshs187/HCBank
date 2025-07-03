@@ -5,35 +5,75 @@ from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 st.set_page_config(page_title="Bank Analytics Dashboard", layout="wide")
 
-st.sidebar.title("Bank Analytics Dashboard")
-st.sidebar.write("""
-Built with ❤️ by [Your Name]
-
-[GitHub Repo](your-repo-link)
-""")
-
-st.title("Bank Customer Data Analytics Dashboard")
-
-# --- File uploader for Excel ---
-uploaded_file = st.file_uploader("Upload your Excel dataset (must contain a 'Cleaned data' sheet)", type=["xlsx"])
-if uploaded_file is not None:
-    df = pd.read_excel(uploaded_file, sheet_name='Cleaned data')
-else:
-    st.warning("Please upload your data file to continue.")
-    st.stop()
-
-tabs = st.tabs([
+# ----- TABS -----
+tab_names = [
+    "Objectives",
+    "How to Use",
     "Data Visualisation",
     "Classification",
     "Clustering",
     "Association Rule Mining",
-    "Regression"
-])
+    "Regression",
+    "NLP (Feedback Analysis)",
+    "Time Series Trends",
+    "Advanced Segmentation"
+]
+tabs = st.tabs(tab_names)
+
+# --- Objectives Tab ---
+with tabs[0]:
+    st.title("📊 Dashboard Objectives")
+    st.markdown("""
+Welcome to the Bank Customer Analytics Dashboard!  
+Here’s what you can accomplish:
+
+#### 1. Predict Customer Churn *(Classification)*
+Identify at-risk customers before they leave using models like Random Forest and Decision Trees.
+
+#### 2. Estimate Satisfaction Score *(Regression)*
+Forecast satisfaction scores for proactive customer service and cross-selling.
+
+#### 3. Segment Customers for Personalized Offers *(Clustering)*
+Discover groups of similar customers for targeted FinAdvisor offers and personalized retention.
+
+#### 4. Find High Retention Patterns *(Association Rules)*
+Reveal which product combos and behaviors are common among your loyal customers.
+
+#### 5. Predict Churn Reduction After FinAdvisor Use *(Regression)*
+Quantify the impact of the FinAdvisor app on churn reduction across segments.
+
+---
+*See each tab above for interactive analytics!*
+""")
+
+# --- Help Tab ---
+with tabs[1]:
+    st.title("🆘 How to Use This Dashboard")
+    st.markdown("""
+1. **Upload your Excel dataset** (must have a sheet named `'Cleaned data'`).
+2. **Navigate tabs** for interactive insights.
+3. **Hover over tooltips** for quick help in each analysis.
+4. **Download results** from relevant tabs for reports or action.
+5. **See Objectives** tab for business context.
+
+*Note: If you don’t see charts or results, check your data format or try a different filter.*
+    """)
+
+# ---- File uploader for Excel (available on all tabs) ----
+with st.sidebar:
+    uploaded_file = st.file_uploader("Upload your Excel dataset (must contain a 'Cleaned data' sheet)", type=["xlsx"])
+
+if uploaded_file is not None:
+    df = pd.read_excel(uploaded_file, sheet_name='Cleaned data')
+else:
+    st.warning("Please upload your data file using the sidebar to continue.")
+    st.stop()
 
 # ---- Data Visualisation Tab ----
-with tabs[0]:
+with tabs[2]:
     st.header("Data Visualisation")
-    st.write("Explore your bank customer dataset with advanced visual insights. Use the filters below to drill down on segments of interest.")
+    st.write("Explore your dataset with interactive filters and discover actionable insights.")
+
     col1, col2, col3 = st.columns(3)
     with col1:
         gender = st.multiselect("Select Gender", options=df['Gender'].unique(), default=list(df['Gender'].unique()))
@@ -61,13 +101,13 @@ with tabs[0]:
     st.subheader("1. Churn Rate by Account Type")
     churn_rate = filtered_df.groupby('Account_Type')['Churn_Label'].mean()
     st.bar_chart(churn_rate)
-    st.caption("This chart shows the proportion of customers who have churned, segmented by account type.")
+    st.caption("Proportion of customers who have churned, segmented by account type.")
 
     # 2. Average Account Balance by Region
     st.subheader("2. Average Account Balance by Region")
     region_balance = filtered_df.groupby('Region')['Account_Balance'].mean().sort_values()
     st.bar_chart(region_balance)
-    st.caption("Reveals which regions hold the highest average account balances.")
+    st.caption("Which regions hold the highest average account balances?")
 
     # 3. Churn by Age Group
     st.subheader("3. Churn Rate by Age Group")
@@ -76,19 +116,19 @@ with tabs[0]:
     filtered_df['Age_Group'] = pd.cut(filtered_df['Age'], bins=bins, labels=labels, include_lowest=True)
     churn_by_age = filtered_df.groupby('Age_Group')['Churn_Label'].mean()
     st.line_chart(churn_by_age)
-    st.caption("Shows which age groups are most likely to churn.")
+    st.caption("Which age groups are most likely to churn?")
 
     # 4. Customer Satisfaction by Account Type
     st.subheader("4. Customer Satisfaction by Account Type")
     satisfaction = filtered_df.groupby('Account_Type')['Customer_Satisfaction_Score'].mean()
     st.bar_chart(satisfaction)
-    st.caption("Visualizes average satisfaction scores by account type.")
+    st.caption("Average satisfaction scores by account type.")
 
     # 5. Loan Distribution by Type
     st.subheader("5. Loan Amount Distribution by Loan Type")
     loan_dist = filtered_df.groupby('Loan_Type')['Loan_Amount'].sum().sort_values(ascending=False)
     st.bar_chart(loan_dist)
-    st.caption("Total loan amounts distributed across various loan types.")
+    st.caption("Total loan amounts distributed across loan types.")
 
     # 6. Churn vs. Credit Score (Boxplot)
     st.subheader("6. Credit Score Distribution: Churned vs. Non-Churned")
@@ -100,13 +140,13 @@ with tabs[0]:
     ax.set_xlabel("Churn Status")
     ax.set_ylabel("Credit Score")
     st.pyplot(fig)
-    st.caption("Compares the credit score distributions for churned vs. non-churned customers.")
+    st.caption("Credit score distributions for churned vs. non-churned customers.")
 
     # 7. Customer Count by Branch (Top 10)
     st.subheader("7. Top 10 Branches by Customer Count")
     top_branches = filtered_df['Branch'].value_counts().head(10)
     st.bar_chart(top_branches)
-    st.caption("Displays the branches with the largest number of customers.")
+    st.caption("Branches with the largest number of customers.")
 
     # 8. Transaction Type Distribution (Plotly Pie Chart)
     st.subheader("8. Transaction Type Distribution")
@@ -122,14 +162,14 @@ with tabs[0]:
         hole=0.3
     )
     st.plotly_chart(fig3, use_container_width=True)
-    st.caption("Shows how different types of transactions are distributed in the filtered dataset.")
+    st.caption("Distribution of different transaction types.")
 
     # 9. Monthly Transaction Amount Trend
     st.subheader("9. Monthly Transaction Amount Trend")
     filtered_df['Transaction_Month'] = filtered_df['Transaction_Date'].dt.to_period('M').astype(str)
     monthly_trx = filtered_df.groupby('Transaction_Month')['Transaction_Amount'].sum()
     st.line_chart(monthly_trx)
-    st.caption("Total transaction amount per month, showing seasonality or trends.")
+    st.caption("Total transaction amount per month.")
 
     # 10. Correlation Heatmap of Key Numeric Variables
     st.subheader("10. Correlation Heatmap")
@@ -139,12 +179,12 @@ with tabs[0]:
     fig2, ax2 = plt.subplots(figsize=(10, 6))
     sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
     st.pyplot(fig2)
-    st.caption("Shows relationships between key numeric variables.")
+    st.caption("Relationships between key numeric variables.")
 
-    st.info("All charts update automatically based on the filters above. Use these insights to identify trends, risks, and opportunities in your customer base.")
+    st.info("All charts update automatically based on the filters above.")
 
 # ---- Classification Tab ----
-with tabs[1]:
+with tabs[3]:
     st.header("Classification Models: Churn Prediction")
     st.write(
         """
@@ -201,6 +241,7 @@ with tabs[1]:
     st.write(cm_df)
     st.caption(f"Confusion matrix for {cm_option} on test data.")
     st.subheader("ROC Curves: All Models")
+    import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     for name in models.keys():
         if probs[name] is not None:
@@ -241,7 +282,7 @@ with tabs[1]:
     st.info("Select a model above to view its confusion matrix. ROC curves compare model performance. Upload new data to generate churn predictions.")
 
 # ---- Clustering Tab ----
-with tabs[2]:
+with tabs[4]:
     st.header("Customer Clustering")
     st.write("""
         Segment your customers using KMeans clustering.
@@ -290,7 +331,7 @@ with tabs[2]:
     st.info("Cluster assignments update automatically with k. Use the persona table to guide marketing and segmentation strategies.")
 
 # ---- Association Rule Mining Tab ----
-with tabs[3]:
+with tabs[5]:
     st.header("Association Rule Mining (Apriori)")
     st.write("""
         Discover hidden patterns between categorical variables using the Apriori algorithm.
@@ -325,7 +366,7 @@ with tabs[3]:
     st.info("Adjust parameters to find more or fewer associations. Use these rules to discover strong links between customer behaviors or attributes.")
 
 # ---- Regression Tab ----
-with tabs[4]:
+with tabs[6]:
     st.header("Regression Models & Insights")
     st.write("""
         Predict key financial outcomes (e.g., account balance, income, satisfaction) using regression.
@@ -389,7 +430,22 @@ with tabs[4]:
     st.caption("Insights derived from regression coefficients and feature importances.")
     st.info("Use these models to forecast key business outcomes and identify actionable drivers of customer value.")
 
-st.markdown("""
----
-*All charts and tables include explanations below for your insights.*
-""")
+# ---- NLP Feedback Analysis Tab ----
+with tabs[7]:
+    st.header("NLP (Feedback/Complaints Analysis)")
+    st.write("Analyze customer feedback or complaints for hidden insights using NLP (e.g., sentiment, topics, word clouds).")
+    st.info("Upload a dataset with a text column for analysis. Feature coming soon!")
+
+# ---- Time Series Trends Tab ----
+with tabs[8]:
+    st.header("Time Series Analysis")
+    st.write("Visualize and forecast trends in key metrics over time (e.g., transaction amounts, complaints, account activity).")
+    st.info("Select a date column and a metric to visualize. Feature coming soon!")
+
+# ---- Advanced Segmentation Tab ----
+with tabs[9]:
+    st.header("Advanced Customer Segmentation")
+    st.write("Deeper customer segments using machine learning and interactive visualization. Includes cluster explanations, SHAP plots, etc.")
+    st.info("Feature coming soon!")
+
+st.markdown("---\n*See Objectives and Help tabs for more information.*")
