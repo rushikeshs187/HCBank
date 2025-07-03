@@ -78,14 +78,19 @@ with tabs[1]:
         st.caption("Insight: Some account types have double the churn risk. Target upgrades and retention offers accordingly.")
 
     # Sunburst: Region → Account Type → Churn
-    if {'Region','Account_Type','Churn_Label'}<=set(cols):
+    if {'Region','Account_Type','Churn_Label'} <= set(cols):
         st.subheader("Customer Distribution: Region → Account → Churn")
-        st.plotly_chart(
-            px.sunburst(v, path=['Region','Account_Type','Churn_Label'],
-                        values='Customer_ID' if 'Customer_ID' in cols else None,
-                        color='Churn_Label', color_continuous_scale='RdBu'),
-            use_container_width=True
+        sb_data = v.dropna(subset=['Region', 'Account_Type', 'Churn_Label'])
+        sb_args = dict(
+            data_frame=sb_data,
+            path=['Region','Account_Type','Churn_Label'],
+            color='Churn_Label',
+            color_continuous_scale='RdBu'
         )
+        if 'Customer_ID' in cols:
+            sb_args['values'] = 'Customer_ID'
+        fig = px.sunburst(**sb_args)
+        st.plotly_chart(fig, use_container_width=True)
 
     # Correlation heatmap
     nums = v.select_dtypes('number')
