@@ -3,10 +3,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-# ---- Load Data ----
-@st.cache_data
-def load_data():
-    return pd.read_excel('data/Dataset- Bank.xlsx', sheet_name='Cleaned data')
+st.set_page_config(page_title="Bank Analytics Dashboard", layout="wide")
 
 st.sidebar.title("Bank Analytics Dashboard")
 st.sidebar.write("""
@@ -17,7 +14,13 @@ Built with ❤️ by [Your Name]
 
 st.title("Bank Customer Data Analytics Dashboard")
 
-df = load_data()
+# --- File uploader for Excel ---
+uploaded_file = st.file_uploader("Upload your Excel dataset (must contain a 'Cleaned data' sheet)", type=["xlsx"])
+if uploaded_file is not None:
+    df = pd.read_excel(uploaded_file, sheet_name='Cleaned data')
+else:
+    st.warning("Please upload your data file to continue.")
+    st.stop()
 
 tabs = st.tabs([
     "Data Visualisation",
@@ -139,46 +142,37 @@ with tabs[1]:
         Upload new data to generate predictions using the best-performing model.
         """
     )
-
     drop_cols = ['Customer_ID', 'Transaction_Date', 'Account_Open_Date', 'Last_Transaction_Date', 
                  'Churn_Timeframe', 'Simulated_New_Churn_Label']
     target = 'Churn_Label'
     features = [col for col in df.columns if col not in drop_cols + [target]]
     X = df[features]
     y = df[target]
-
     X_encoded = X.copy()
     for col in X_encoded.select_dtypes(include=['object', 'category']).columns:
         X_encoded[col] = LabelEncoder().fit_transform(X_encoded[col].astype(str))
     X_encoded = X_encoded.fillna(0)
-
     X_train, X_test, y_train, y_test = train_test_split(X_encoded, y, test_size=0.25, random_state=42, stratify=y)
-
     from sklearn.neighbors import KNeighborsClassifier
     from sklearn.tree import DecisionTreeClassifier
     from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
     from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_curve, auc
-
     models = {
         "KNN": KNeighborsClassifier(),
         "Decision Tree": DecisionTreeClassifier(random_state=42),
         "Random Forest": RandomForestClassifier(random_state=42),
         "GBRT": GradientBoostingClassifier(random_state=42),
     }
-
     metrics = []
     predictions = {}
     probs = {}
-
     for name, model in models.items():
         model.fit(X_train, y_train)
         y_pred_train = model.predict(X_train)
         y_pred_test = model.predict(X_test)
         y_prob_test = model.predict_proba(X_test)[:, 1] if hasattr(model, "predict_proba") else None
-
         predictions[name] = (y_pred_train, y_pred_test)
         probs[name] = y_prob_test
-
         metrics.append({
             "Algorithm": name,
             "Train Accuracy": accuracy_score(y_train, y_pred_train),
@@ -187,18 +181,15 @@ with tabs[1]:
             "Recall": recall_score(y_test, y_pred_test),
             "F1-Score": f1_score(y_test, y_pred_test),
         })
-
     st.subheader("Model Performance Comparison")
     st.dataframe(pd.DataFrame(metrics).set_index("Algorithm").style.format("{:.2%}"))
     st.caption("Accuracy, precision, recall, and F1-score are shown for each model.")
-
     st.subheader("Confusion Matrix")
     cm_option = st.selectbox("Select Model for Confusion Matrix", list(models.keys()))
     cm = confusion_matrix(y_test, predictions[cm_option][1])
     cm_df = pd.DataFrame(cm, index=["Not Churned", "Churned"], columns=["Predicted Not Churned", "Predicted Churned"])
     st.write(cm_df)
     st.caption(f"Confusion matrix for {cm_option} on test data.")
-
     st.subheader("ROC Curves: All Models")
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
@@ -213,14 +204,13 @@ with tabs[1]:
     ax.legend()
     st.pyplot(fig)
     st.caption("ROC curve compares classifier ability to distinguish churners/non-churners.")
-
     st.subheader("Upload New Data for Prediction")
-    uploaded_file = st.file_uploader("Upload new data (xlsx/csv, same columns as original features, *without* Churn_Label)", type=["xlsx", "csv"])
-    if uploaded_file:
-        if uploaded_file.name.endswith("xlsx"):
-            new_data = pd.read_excel(uploaded_file)
+    uploaded_pred_file = st.file_uploader("Upload new data (xlsx/csv, same columns as original features, *without* Churn_Label)", type=["xlsx", "csv"], key="predict")
+    if uploaded_pred_file:
+        if uploaded_pred_file.name.endswith("xlsx"):
+            new_data = pd.read_excel(uploaded_pred_file)
         else:
-            new_data = pd.read_csv(uploaded_file)
+            new_data = pd.read_csv(uploaded_pred_file)
         new_data_enc = new_data.copy()
         for col in new_data_enc.select_dtypes(include=['object', 'category']).columns:
             new_data_enc[col] = LabelEncoder().fit_transform(new_data_enc[col].astype(str))
@@ -239,7 +229,6 @@ with tabs[1]:
             mime="text/csv"
         )
         st.caption("Download predicted churn results for new uploaded data.")
-
     st.info("Select a model above to view its confusion matrix. ROC curves compare model performance. Upload new data to generate churn predictions.")
 
 # ---- Clustering Tab ----
@@ -249,7 +238,6 @@ with tabs[2]:
         Segment your customers using KMeans clustering.
         Use the slider to set number of clusters, view the elbow chart, and download persona-labeled data.
     """)
-
     numeric_exclude = [
         "Customer_ID", "Churn_Label", "Simulated_New_Churn_Label",
         "Transaction_Date", "Account_Open_Date", "Last_Transaction_Date", "Churn_Timeframe"
@@ -393,7 +381,6 @@ with tabs[4]:
     st.caption("Insights derived from regression coefficients and feature importances.")
     st.info("Use these models to forecast key business outcomes and identify actionable drivers of customer value.")
 
-# ---- Footer ----
 st.markdown("""
 ---
 *All charts and tables include explanations below for your insights.*
