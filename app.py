@@ -18,14 +18,12 @@ tab_names = [
 ]
 tabs = st.tabs(tab_names)
 
-# ----- SIDEBAR -----
 with st.sidebar:
     st.title("🏦 Bank Analytics Dashboard")
     uploaded_file = st.file_uploader("Upload Excel dataset (with 'Cleaned data' sheet)", type=["xlsx"])
     st.markdown("---")
     st.info("1. Upload data\n2. Explore tabs\n3. Download insights!", icon="ℹ️")
 
-# ---- DATA LOADING ----
 if uploaded_file is not None:
     try:
         df = pd.read_excel(uploaded_file, sheet_name='Cleaned data')
@@ -207,15 +205,162 @@ with tabs[2]:
         st.error(f"Data Visualisation failed: {e}")
 
 # ---- CLASSIFICATION TAB ----
-# (You can keep the classification code from the previous complete answer!)
+with tabs[3]:
+    st.header("🤖 Churn Prediction: Model Comparison")
+    try:
+        drop_cols = ['Customer_ID', 'Transaction_Date', 'Account_Open_Date', 'Last_Transaction_Date', 'Churn_Timeframe', 'Simulated_New_Churn_Label']
+        target = 'Churn_Label'
+        features = [col for col in df.columns if col not in drop_cols + [target]]
+        if target not in df.columns or len(features) < 1:
+            st.warning("Not enough features or missing Churn_Label for classification.")
+        else:
+            X = df[features].copy()
+            y = df[target]
+            for col in X.select_dtypes(include=['object', 'category']):
+                X[col] = LabelEncoder().fit_transform(X[col].astype(str))
+            X = X.fillna(0)
+            constant_cols = [c for c in X.columns if X[c].nunique() == 1]
+            if constant_cols: X = X.drop(columns=constant_cols)
+            if X.shape[1] == 0:
+                st.error("No valid features after encoding. Add more varied columns to your data.")
+            else:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=0.25, random_state=42, stratify=y)
+                from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier
+                from sklearn.tree import DecisionTreeClassifier
+                from sklearn.neighbors import KNeighborsClassifier
+                from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix, roc_curve, auc
+
+                models = {
+                    "Random Forest": RandomForestClassifier(random_state=42),
+                    "Decision Tree": DecisionTreeClassifier(random_state=42),
+                    "Gradient Boosting": GradientBoostingClassifier(random_state=42),
+                    "KNN": KNeighborsClassifier()
+                }
+
+                results, probs = [], {}
+                for name, mdl in models.items():
+                    mdl.fit(X_train, y_train)
+                    pred = mdl.predict(X_test)
+                    acc = accuracy_score(y_test, pred)
+                    prec = precision_score(y_test, pred, average='macro', zero_division=0)
+                    rec = recall_score(y_test, pred, average='macro', zero_division=0)
+                    f1 = f1_score(y_test, pred, average='macro', zero_division=0)
+                    results.append(dict(Model=name, Accuracy=acc, Precision=prec, Recall=rec, F1=f1))
+                    if hasattr(mdl, "predict_proba"):
+                        probs[name] = mdl.predict_proba(X_test)[:,1]
+                    else:
+                        probs[name] = (pred == 1).astype(float)
+                results_df = pd.DataFrame(results)
+                st.dataframe(results_df.style.format({
+                    "Accuracy": "{:.2%}", "Precision": "{:.2%}",
+                    "Recall": "{:.2%}", "F1": "{:.2%}"
+                }), height=180)
+
+                # Model selection for confusion & ROC
+                model_select = st.selectbox("Select Model for Confusion Matrix & ROC", list(models.keys()))
+                model = models[model_select]
+                pred = model.predict(X_test)
+                st.subheader("Confusion Matrix")
+                cm = confusion_matrix(y_test, pred)
+                cm_df = pd.DataFrame(cm, index=["Not Churned", "Churned"], columns=["Pred: Not Churned", "Pred: Churned"])
+                st.dataframe(cm_df)
+
+                st.subheader("ROC Curve")
+                import matplotlib.pyplot as plt
+                fig, ax = plt.subplots()
+                for name, prob in probs.items():
+                    fpr, tpr, _ = roc_curve(y_test, prob)
+                    auc_val = auc(fpr, tpr)
+                    ax.plot(fpr, tpr, label=f"{name} (AUC={auc_val:.2f})")
+                ax.plot([0,1],[0,1],"k--", lw=1)
+                ax.set_xlabel("False Positive Rate")
+                ax.set_ylabel("True Positive Rate")
+                ax.set_title("ROC Curves")
+                ax.legend()
+                st.pyplot(fig)
+
+                # Feature Importances (for trees)
+                if model_select in ["Random Forest", "Decision Tree", "Gradient Boosting"]:
+                    st.subheader("Top Feature Importances")
+                    importances = pd.Series(model.feature_importances_, index=X.columns)
+                    st.bar_chart(importances.sort_values(ascending=False).head(10))
+    except Exception as e:
+        st.error(f"Classification failed: {e}")
 
 # ---- CLUSTERING TAB ----
-# (You can keep your clustering code from the previous complete answer!)
+with tabs[4]:
+    st.header("🧩 Customer Clustering")
+    try:
+        from sklearn.cluster import KMeans
+        num_cols = [c for c in df.select_dtypes(include=np.number).columns if df[c].nunique() > 1]
+        bad_cols = ['Churn_Label', 'Simulated_New_Churn_Label','Customer_ID','Account_Open_Date','Last_Transaction_Date','Transaction_Date','Churn_Timeframe']
+        cluster_features = [c for c in num_cols if c not in bad_cols]
+        if len(cluster_features) < 2:
+            st.warning("Not enough valid numeric features for clustering.")
+        else:
+            X_cluster = df[cluster_features].fillna(0)
+            scaler = StandardScaler()
+            X_scaled = scaler.fit_transform(X_cluster)
+            k = st.slider("Select clusters (k)", min_value=2, max_value=min(200, len(df)), value=5, step=1)
+            kmeans = KMeans(n_clusters=k, random_state=42)
+            cluster_labels = kmeans.fit_predict(X_scaled)
+            df_with_clusters = df.copy()
+            df_with_clusters['Cluster'] = cluster_labels
+            inertias = []
+            elbow_range = range(2, min(21, len(df)))
+            for ki in elbow_range:
+                km = KMeans(n_clusters=ki, random_state=42)
+                km.fit(X_scaled)
+                inertias.append(km.inertia_)
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots()
+            ax.plot(list(elbow_range), inertias, marker="o")
+            ax.set_xlabel("Clusters (k)")
+            ax.set_ylabel("Inertia")
+            ax.set_title("Elbow Chart (up to 20 clusters)")
+            st.pyplot(fig)
+            st.subheader("Cluster Personas (mean by cluster)")
+            st.dataframe(df_with_clusters.groupby('Cluster')[cluster_features].mean().round(2))
+            st.download_button(
+                label="Download Cluster Data (CSV)",
+                data=df_with_clusters.to_csv(index=False).encode("utf-8"),
+                file_name="clustered_customers.csv",
+                mime="text/csv"
+            )
+    except Exception as e:
+        st.error(f"Clustering failed: {e}")
 
 # ---- ASSOCIATION RULES TAB ----
-# (You can keep your association rule code from the previous complete answer!)
+with tabs[5]:
+    st.header("🔗 Association Rule Mining")
+    try:
+        from mlxtend.frequent_patterns import apriori, association_rules
+        cat_cols = df.select_dtypes(include=['object']).columns.tolist()
+        if len(cat_cols) < 2:
+            st.warning("Need at least 2 categorical columns for association rule mining.")
+        else:
+            apriori_cols = st.multiselect("Select 2+ categorical columns:", options=cat_cols, default=cat_cols[:2])
+            min_support = st.slider("Min Support", 0.01, 0.2, 0.05, step=0.01)
+            min_conf = st.slider("Min Confidence", 0.01, 1.0, 0.3, step=0.01)
+            min_lift = st.slider("Min Lift", 1.0, 5.0, 1.2, step=0.1)
+            if len(apriori_cols) >= 2:
+                encoded_df = pd.get_dummies(df[apriori_cols].astype(str))
+                freq_items = apriori(encoded_df, min_support=min_support, use_colnames=True)
+                rules = association_rules(freq_items, metric="confidence", min_threshold=min_conf)
+                rules = rules[rules["lift"] >= min_lift]
+                rules = rules.sort_values("confidence", ascending=False).head(10)
+                if not rules.empty:
+                    display_cols = ["antecedents", "consequents", "support", "confidence", "lift"]
+                    rules['antecedents'] = rules['antecedents'].apply(lambda x: ', '.join(list(x)))
+                    rules['consequents'] = rules['consequents'].apply(lambda x: ', '.join(list(x)))
+                    st.dataframe(rules[display_cols])
+                else:
+                    st.warning("No rules found. Try different columns or lower thresholds.")
+    except Exception as e:
+        st.error(f"Association rules failed: {e}")
 
-# ---- REGRESSION TAB (RandomForest+GBRT) ----
+# ---- REGRESSION TAB ----
 with tabs[6]:
     st.header("📈 Regression (RandomForest vs. GradientBoosting)")
     try:
@@ -236,11 +381,9 @@ with tabs[6]:
             else:
                 X_reg = df[reg_features].copy()
                 y_reg = df[target_reg]
-                # Robust encoding
                 for col in X_reg.select_dtypes(include=['object', 'category']):
                     X_reg[col] = LabelEncoder().fit_transform(X_reg[col].astype(str))
                 X_reg = X_reg.fillna(0)
-                # Remove columns with only one unique value
                 constant_cols = [c for c in X_reg.columns if X_reg[c].nunique() == 1]
                 if constant_cols:
                     X_reg = X_reg.drop(columns=constant_cols)
@@ -248,15 +391,12 @@ with tabs[6]:
                     st.error("No valid features after encoding. Add more varied columns to your data.")
                 else:
                     Xr_train, Xr_test, yr_train, yr_test = train_test_split(X_reg, y_reg, test_size=0.25, random_state=42)
-                    # Random Forest
                     rf = RandomForestRegressor(n_estimators=200, random_state=42)
                     rf.fit(Xr_train, yr_train)
                     y_rf = rf.predict(Xr_test)
-                    # Gradient Boosting
                     gb = GradientBoostingRegressor(n_estimators=200, random_state=42)
                     gb.fit(Xr_train, yr_train)
                     y_gb = gb.predict(Xr_test)
-                    # Metrics
                     data_metrics = {
                         "Model": ["Random Forest", "Gradient Boosting"],
                         "R²": [r2_score(yr_test, y_rf), r2_score(yr_test, y_gb)],
@@ -278,6 +418,22 @@ with tabs[6]:
         st.error(f"Regression failed: {e}")
 
 # ---- TIME SERIES TAB ----
-# (Keep your time series code as before!)
+with tabs[7]:
+    st.header("⏳ Time Series Trends")
+    try:
+        if 'Transaction_Date' in df.columns:
+            df['Transaction_Month'] = pd.to_datetime(df['Transaction_Date']).dt.to_period('M').astype(str)
+            metric_cols = [col for col in ['Transaction_Amount', 'Account_Balance', 'Customer_Satisfaction_Score'] if col in df.columns]
+            if metric_cols:
+                monthly_metrics = df.groupby('Transaction_Month')[metric_cols].mean().reset_index()
+                import plotly.express as px
+                fig = px.line(monthly_metrics, x='Transaction_Month', y=metric_cols, markers=True)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("No numeric metrics found for time series.")
+        else:
+            st.warning("Transaction_Date column not found for time series analysis.")
+    except Exception as e:
+        st.error(f"Time Series Analysis failed: {e}")
 
 st.markdown("---\n*If a feature doesn't show up, it's because your data doesn't have the required columns.*")
