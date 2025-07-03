@@ -50,7 +50,6 @@ with tabs[0]:
 - Segment Customers for Offers (target personas)
 - Find High Retention Patterns (build loyalty)
 - Quantify FinAdvisor's impact (business case for tech)
-
 _Navigate tabs above to explore each goal!_
 """)
 
@@ -192,14 +191,13 @@ with tabs[2]:
             st.subheader("10. Correlation Heatmap")
             corr = numeric_cols.corr()
             fig2, ax2 = plt.subplots(figsize=(10, 6))
-            import seaborn as sns
             sns.heatmap(corr, annot=True, cmap='coolwarm', fmt='.2f', ax=ax2)
             st.pyplot(fig2)
 
     except Exception as e:
         st.error(f"Data Visualisation failed: {e}")
 
-# ---- CLASSIFICATION TAB ----
+# ---- CLASSIFICATION TAB (FIXED) ----
 with tabs[3]:
     st.header("🤖 Churn Prediction (Classification)")
     try:
@@ -209,33 +207,47 @@ with tabs[3]:
         if target not in df.columns or len(features) < 1:
             st.warning("Not enough features or missing Churn_Label for classification.")
         else:
-            X = df[features]
+            X = df[features].copy()
             y = df[target]
-            X_encoded = X.copy()
-            for col in X_encoded.select_dtypes(include=['object', 'category']).columns:
-                X_encoded[col] = LabelEncoder().fit_transform(X_encoded[col].astype(str))
-            X_encoded = X_encoded.fillna(0)
-            X_train, X_test, y_train, y_test = train_test_split(X_encoded, y, test_size=0.25, random_state=42, stratify=y)
-            from sklearn.ensemble import RandomForestClassifier
-            from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
-            model = RandomForestClassifier(random_state=42)
-            model.fit(X_train, y_train)
-            y_pred_test = model.predict(X_test)
-            st.metric("Test Accuracy", f"{accuracy_score(y_test, y_pred_test):.2%}")
-            cm = confusion_matrix(y_test, y_pred_test)
-            st.write("Confusion Matrix:", cm)
-            y_prob_test = model.predict_proba(X_test)[:, 1]
-            fpr, tpr, _ = roc_curve(y_test, y_prob_test)
-            auc_val = auc(fpr, tpr)
-            import matplotlib.pyplot as plt
-            fig, ax = plt.subplots()
-            ax.plot(fpr, tpr, label=f"AUC={auc_val:.2f}")
-            ax.plot([0, 1], [0, 1], "k--")
-            ax.set_xlabel("False Positive Rate")
-            ax.set_ylabel("True Positive Rate")
-            ax.set_title("ROC Curve")
-            ax.legend()
-            st.pyplot(fig)
+            # Robust encoding
+            for col in X.select_dtypes(include=['object', 'category']):
+                X[col] = LabelEncoder().fit_transform(X[col].astype(str))
+            X = X.fillna(0)
+            # Remove columns with only one unique value (constant columns)
+            constant_cols = [c for c in X.columns if X[c].nunique() == 1]
+            if constant_cols:
+                X = X.drop(columns=constant_cols)
+            if X.shape[1] == 0:
+                st.error("No valid features after encoding. Add more varied columns to your data.")
+            else:
+                X_train, X_test, y_train, y_test = train_test_split(
+                    X, y, test_size=0.25, random_state=42, stratify=y)
+                from sklearn.ensemble import RandomForestClassifier
+                from sklearn.metrics import accuracy_score, confusion_matrix, roc_curve, auc
+                model = RandomForestClassifier(random_state=42)
+                model.fit(X_train, y_train)
+                y_pred_test = model.predict(X_test)
+                st.metric("Test Accuracy", f"{accuracy_score(y_test, y_pred_test):.2%}")
+                cm = confusion_matrix(y_test, y_pred_test)
+                cm_df = pd.DataFrame(cm, index=["Not Churned", "Churned"], columns=["Pred: Not Churned", "Pred: Churned"])
+                st.write("Confusion Matrix:")
+                st.dataframe(cm_df)
+                y_prob_test = model.predict_proba(X_test)[:, 1]
+                fpr, tpr, _ = roc_curve(y_test, y_prob_test)
+                auc_val = auc(fpr, tpr)
+                import matplotlib.pyplot as plt
+                fig, ax = plt.subplots()
+                ax.plot(fpr, tpr, label=f"AUC={auc_val:.2f}")
+                ax.plot([0, 1], [0, 1], "k--")
+                ax.set_xlabel("False Positive Rate")
+                ax.set_ylabel("True Positive Rate")
+                ax.set_title("ROC Curve")
+                ax.legend()
+                st.pyplot(fig)
+                # Feature Importances
+                st.subheader("Top Feature Importances")
+                importances = pd.Series(model.feature_importances_, index=X.columns)
+                st.bar_chart(importances.sort_values(ascending=False).head(10))
     except Exception as e:
         st.error(f"Classification failed: {e}")
 
@@ -255,7 +267,7 @@ with tabs[4]:
             scaler = StandardScaler()
             X_cluster = scaler.fit_transform(df[cluster_features])
             k = st.slider("Select clusters (k)", min_value=2, max_value=200, value=5, step=1)
-            kmeans = KMeans(n_clusters=k, random_state=42)  # FIXED!
+            kmeans = KMeans(n_clusters=k, random_state=42)
             cluster_labels = kmeans.fit_predict(X_cluster)
             df_with_clusters = df.copy()
             df_with_clusters['Cluster'] = cluster_labels
@@ -263,7 +275,7 @@ with tabs[4]:
             inertias = []
             elbow_range = range(2, min(21, len(df)))
             for ki in elbow_range:
-                km = KMeans(n_clusters=ki, random_state=42)  # FIXED!
+                km = KMeans(n_clusters=ki, random_state=42)
                 km.fit(X_cluster)
                 inertias.append(km.inertia_)
             import matplotlib.pyplot as plt
@@ -313,7 +325,7 @@ with tabs[5]:
     except Exception as e:
         st.error(f"Association rules failed: {e}")
 
-# ---- REGRESSION TAB ----
+# ---- REGRESSION TAB (FIXED) ----
 with tabs[6]:
     st.header("📈 Regression (Satisfaction & Value)")
     try:
@@ -332,19 +344,30 @@ with tabs[6]:
             if not reg_features:
                 st.warning("No valid features for regression.")
             else:
-                X_reg = df[reg_features]
+                X_reg = df[reg_features].copy()
                 y_reg = df[target_reg]
-                X_reg_encoded = X_reg.copy()
-                for col in X_reg_encoded.select_dtypes(include=['object', 'category']).columns:
-                    X_reg_encoded[col] = LabelEncoder().fit_transform(X_reg_encoded[col].astype(str))
-                X_reg_encoded = X_reg_encoded.fillna(0)
-                Xr_train, Xr_test, yr_train, yr_test = train_test_split(X_reg_encoded, y_reg, test_size=0.25, random_state=42)
-                reg = LinearRegression()
-                reg.fit(Xr_train, yr_train)
-                y_pred = reg.predict(Xr_test)
-                st.metric("R²", f"{r2_score(yr_test, y_pred):.2f}")
-                st.metric("MAE", f"{mean_absolute_error(yr_test, y_pred):.2f}")
-                st.metric("RMSE", f"{mean_squared_error(yr_test, y_pred, squared=False):.2f}")
+                # Robust encoding
+                for col in X_reg.select_dtypes(include=['object', 'category']):
+                    X_reg[col] = LabelEncoder().fit_transform(X_reg[col].astype(str))
+                X_reg = X_reg.fillna(0)
+                # Remove columns with only one unique value
+                constant_cols = [c for c in X_reg.columns if X_reg[c].nunique() == 1]
+                if constant_cols:
+                    X_reg = X_reg.drop(columns=constant_cols)
+                if X_reg.shape[1] == 0:
+                    st.error("No valid features after encoding. Add more varied columns to your data.")
+                else:
+                    Xr_train, Xr_test, yr_train, yr_test = train_test_split(X_reg, y_reg, test_size=0.25, random_state=42)
+                    reg = LinearRegression()
+                    reg.fit(Xr_train, yr_train)
+                    y_pred = reg.predict(Xr_test)
+                    st.metric("R²", f"{r2_score(yr_test, y_pred):.2f}")
+                    st.metric("MAE", f"{mean_absolute_error(yr_test, y_pred):.2f}")
+                    st.metric("RMSE", f"{np.sqrt(mean_squared_error(yr_test, y_pred)):.2f}")
+                    # Show top driver coefficients
+                    st.subheader("Top Regression Feature Effects")
+                    coef = pd.Series(reg.coef_, index=X_reg.columns)
+                    st.bar_chart(coef.abs().sort_values(ascending=False).head(10))
     except Exception as e:
         st.error(f"Regression failed: {e}")
 
