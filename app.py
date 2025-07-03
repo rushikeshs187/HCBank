@@ -255,7 +255,7 @@ with tabs[4]:
             scaler = StandardScaler()
             X_cluster = scaler.fit_transform(df[cluster_features])
             k = st.slider("Select clusters (k)", min_value=2, max_value=200, value=5, step=1)
-            kmeans = KMeans(n_clusters=k, random_state=42, n_init=10)
+            kmeans = KMeans(n_clusters=k, random_state=42)  # FIXED!
             cluster_labels = kmeans.fit_predict(X_cluster)
             df_with_clusters = df.copy()
             df_with_clusters['Cluster'] = cluster_labels
@@ -263,7 +263,7 @@ with tabs[4]:
             inertias = []
             elbow_range = range(2, min(21, len(df)))
             for ki in elbow_range:
-                km = KMeans(n_clusters=ki, random_state=42, n_init=10)
+                km = KMeans(n_clusters=ki, random_state=42)  # FIXED!
                 km.fit(X_cluster)
                 inertias.append(km.inertia_)
             import matplotlib.pyplot as plt
