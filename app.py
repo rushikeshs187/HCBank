@@ -108,10 +108,20 @@ with tabs[0]:
     st.bar_chart(top_branches)
     st.caption("Displays the branches with the largest number of customers.")
 
-    # 8. Transaction Type Distribution
+    # 8. Transaction Type Distribution (Plotly Pie Chart)
     st.subheader("8. Transaction Type Distribution")
     trx_dist = filtered_df['Transaction_Type'].value_counts()
-    st.pie_chart(trx_dist)
+    trx_dist_df = trx_dist.reset_index()
+    trx_dist_df.columns = ['Transaction Type', 'Count']
+    import plotly.express as px
+    fig3 = px.pie(
+        trx_dist_df,
+        names='Transaction Type',
+        values='Count',
+        title='Transaction Type Distribution',
+        hole=0.3
+    )
+    st.plotly_chart(fig3, use_container_width=True)
     st.caption("Shows how different types of transactions are distributed in the filtered dataset.")
 
     # 9. Monthly Transaction Amount Trend
@@ -191,7 +201,6 @@ with tabs[1]:
     st.write(cm_df)
     st.caption(f"Confusion matrix for {cm_option} on test data.")
     st.subheader("ROC Curves: All Models")
-    import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     for name in models.keys():
         if probs[name] is not None:
@@ -259,7 +268,6 @@ with tabs[2]:
         km = KMeans(n_clusters=ki, random_state=42, n_init=10)
         km.fit(X_cluster)
         inertias.append(km.inertia_)
-    import matplotlib.pyplot as plt
     fig, ax = plt.subplots()
     ax.plot(list(K_range), inertias, marker="o")
     ax.set_xlabel("Number of Clusters (k)")
